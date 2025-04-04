@@ -1,4 +1,5 @@
 const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
+const Appointment = require('../models/Appointment');
 
 exports.generateToken = async (req, res) => {
   try {
@@ -60,7 +61,9 @@ exports.getCallDetails = async (req, res) => {
     }
     
     // Find appointment and create a unique channel name
-    const appointment = await Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('doctor', 'name')
+      .populate('patient', 'name');
     
     if (!appointment) {
       return res.status(404).json({
