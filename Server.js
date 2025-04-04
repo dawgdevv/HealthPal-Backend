@@ -40,7 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 // Single CORS configuration 
 app.use(cors({
   origin: [
-    'https://healthpal-client.vercel.app',  // Production frontend
+    'https://health-pal-frontend.vercel.app',  // Production frontend
     'http://localhost:5173',                // Vite dev server
     'http://localhost:3000',                // Alternative local port
     'http://127.0.0.1:5173',                // Alternative local address
