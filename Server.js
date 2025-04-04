@@ -36,23 +36,21 @@ const paymentRoutes = require('./routes/paymentRoutes')
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Single CORS configuration 
 app.use(cors({
   origin: [
-    'https://healthpal-client.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173'
+    'https://healthpal-client.vercel.app',  // Production frontend
+    'http://localhost:5173',                // Vite dev server
+    'http://localhost:3000',                // Alternative local port
+    'http://127.0.0.1:5173',                // Alternative local address
+    'https://healthpal.vercel.app',         // If you use this domain
+    '*'                                     // Allow all origins for testing (remove in production)
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// Debug middleware to log all requests
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-  next();
-});
 
 // Add a development route handler to log attempts to access routes that don't exist
 if (process.env.NODE_ENV === 'development') {
