@@ -31,7 +31,8 @@ const medicationRoutes = require('./routes/medicationRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const notificationController = require('./controllers/notificationController');
 const verificationRoutes = require('./routes/verificationRoutes');
-const paymentRoutes = require('./routes/paymentRoutes')
+const paymentRoutes = require('./routes/paymentRoutes');
+const videoRoutes = require('./routes/videoRoutes');
 
 // Middleware
 app.use(express.json());
@@ -90,7 +91,8 @@ app.use('/api/medications', medicationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api', verificationRoutes);
-app.use('/api/payments', paymentRoutes)
+app.use('/api/payments', paymentRoutes);
+app.use('/api/video', videoRoutes);
 
 // Socket.io connection handler
 io.on('connection', (socket) => {
