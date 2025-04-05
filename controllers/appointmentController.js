@@ -253,6 +253,18 @@ exports.getAppointments = async (req, res) => {
       query.patient = req.query.patientId;
     }
 
+    // Add date filter for past/future appointments
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (req.query.before === 'true') {
+      // For past appointments
+      query.date = { $lt: today };
+    } else if (req.query.before === 'false') {
+      // For future appointments
+      query.date = { $gte: today };
+    }
+
     console.log('Final query for appointments:', JSON.stringify(query));
 
     // Check if there are ANY appointments for this doctor (ignoring filters)
