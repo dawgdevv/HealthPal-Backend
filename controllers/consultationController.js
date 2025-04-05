@@ -5,35 +5,56 @@ const mongoose = require('mongoose');
 // Create new consultation
 exports.createConsultation = async (req, res) => {
   try {
-    const {
-      appointmentId,
-      symptoms,
-      diagnosis,
-      notes,
-      vitalSigns,
-      followUpRequired,
-      followUpDate
-    } = req.body;
+    const { appointmentId, symptoms, diagnosis, notes, vitalSigns, followUpRequired, followUpDate } = req.body;
     
     // Validate required fields
     if (!appointmentId || !symptoms || !diagnosis) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide appointment ID, symptoms and diagnosis'
+        message: 'Please provide all required fields'
       });
     }
     
-    // Verify appointment exists
+    console.log('Creating consultation for appointment:', appointmentId);
+    
+    // Find the appointment
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) {
+      console.error('Appointment not found:', appointmentId);
       return res.status(404).json({
         success: false,
         message: 'Appointment not found'
       });
     }
     
-    // Only doctor assigned to appointment can create consultation
-    if (appointment.doctor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    // Check for existing consultation
+    const existingConsultation = await Consultation.findOne({ appointment: appointmentId });
+    if (existingConsultation) {
+      console.log('Consultation already exists for this appointment, returning existing one');
+      // Instead of error, return the existing consultation
+      await existingConsultation.populate([
+        { path: 'patient', select: 'name email profileImage' },
+        { path: 'doctor', select: 'name specialization profileImage' }
+      ]);
+      
+      return res.status(200).json({
+        success: true,
+        data: existingConsultation
+      });
+    }
+    
+    // Only doctors or authorized staff can create consultations
+    if (req.user.role !== 'doctor' && req.user.role !== 'admin') {
+      console.error('Unauthorized user tried to create consultation:', req.user._id);
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to create consultation'
+      });
+    }
+    
+    // Check doctor authorization for this appointment
+    if (req.user.role === 'doctor' && appointment.doctor.toString() !== req.user._id.toString()) {
+      console.error('Doctor not assigned to this appointment:', req.user._id);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to create consultation for this appointment'
@@ -53,20 +74,10 @@ exports.createConsultation = async (req, res) => {
       followUpDate: followUpDate || null
     });
     
-    // Update appointment status to completed
-    appointment.status = 'completed';
-    await appointment.save();
-    
     // Populate relevant fields for response
     await consultation.populate([
-      {
-        path: 'patient',
-        select: 'name email profileImage'
-      },
-      {
-        path: 'doctor',
-        select: 'name specialization profileImage'
-      }
+      { path: 'patient', select: 'name email profileImage' },
+      { path: 'doctor', select: 'name specialization profileImage' }
     ]);
     
     res.status(201).json({
@@ -74,9 +85,10 @@ exports.createConsultation = async (req, res) => {
       data: consultation
     });
   } catch (error) {
+    console.error('Error creating consultation:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Error creating consultation'
     });
   }
 };
