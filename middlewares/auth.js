@@ -28,11 +28,12 @@ exports.protect = async (req, res, next) => {
       // Log decoded token information
       console.log('Token verification successful:');
       console.log('- User ID:', decoded.id);
-      console.log('- User Role:', decoded.role);
+      console.log('- User Role:', decoded.role || 'undefined');
       
-      // Find user based on role from token
+      // Find user based on decoded ID
       let user;
       
+      // If role is in token, use it to determine model
       if (decoded.role === 'doctor') {
         user = await Doctor.findById(decoded.id);
         
@@ -47,7 +48,16 @@ exports.protect = async (req, res, next) => {
       } else if (decoded.role === 'patient') {
         user = await Patient.findById(decoded.id);
       } else {
-        user = await Person.findById(decoded.id);
+        // Try all models if role not in token or is unknown
+        user = await Doctor.findById(decoded.id);
+        
+        if (!user) {
+          user = await Patient.findById(decoded.id);
+        }
+        
+        if (!user) {
+          user = await Person.findById(decoded.id);
+        }
       }
       
       // If user doesn't exist, return unauthorized
@@ -60,12 +70,13 @@ exports.protect = async (req, res, next) => {
       
       // Set user in request
       req.user = user;
+      req.userRole = decoded.role || user.role; // Maintain role from token or user
       next();
     } catch (jwtError) {
       console.error('JWT verification error:', jwtError);
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'Invalid or expired token'
       });
     }
   } catch (error) {
