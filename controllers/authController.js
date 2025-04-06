@@ -288,7 +288,7 @@ exports.authenticateFirebase = async (req, res) => {
   }
 };
 
-// Replace or add this function to explicitly handle email/password login
+// Replace or modify the login function to fix the password comparison issue
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -302,7 +302,7 @@ exports.login = async (req, res) => {
 
     console.log(`Authentication attempt for email: ${email}`);
     
-    // CRITICAL: Check DOCTOR model FIRST with explicit role assignment
+    // Check DOCTOR model FIRST with explicit role assignment
     let user = await Doctor.findOne({ email }).select('+password');
     let userRole = 'doctor';
     
@@ -327,8 +327,9 @@ exports.login = async (req, res) => {
       });
     }
     
-    // Verify password
-    const isMatch = await user.matchPassword(password);
+    // CRITICAL FIX: Use bcrypt.compare directly instead of using a method that might not exist
+    const bcrypt = require('bcryptjs');
+    const isMatch = await bcrypt.compare(password, user.password);
     
     if (!isMatch) {
       console.log(`Password mismatch for email: ${email}`);
@@ -338,12 +339,11 @@ exports.login = async (req, res) => {
       });
     }
     
-    // Log detailed information about the authenticated user
+    // Log successful authentication
     console.log(`User authenticated successfully:`);
     console.log(`- ID: ${user._id}`);
     console.log(`- Email: ${user.email}`);
     console.log(`- Role: ${userRole}`);
-    console.log(`- Collection: ${user.constructor.modelName}`);
     
     // Create JWT with explicit role information
     const token = generateToken(user._id);
