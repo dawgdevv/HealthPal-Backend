@@ -121,6 +121,71 @@ router.post('/google', async (req, res) => {
   }
 });
 
+// Add this route to handle authentication requests
+router.post('/authenticate', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({
+        success: false, 
+        message: 'No token provided'
+      });
+    }
+    
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // If token is valid, fetch fresh user data
+    let user;
+    const userId = decoded.id;
+    const userRole = decoded.role;
+    
+    if (userRole === 'doctor') {
+      user = await Doctor.findById(userId).select('-password');
+    } else if (userRole === 'patient') {
+      user = await Patient.findById(userId).select('-password');
+    } else {
+      user = await Person.findById(userId).select('-password');
+    }
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Update token with fresh data
+    const newToken = jwt.sign(
+      { id: user._id, role: userRole },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    
+    // Return fresh data
+    return res.status(200).json({
+      success: true,
+      token: newToken,
+      user: {
+        _id: user._id,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: userRole,
+        profileImage: user.profileImage || null,
+        ...(userRole === 'doctor' && { verificationStatus: user.verificationStatus })
+      }
+    });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+});
+
 // Add or verify this line BEFORE the protect middleware
 router.post('/admin-login', authController.adminLogin);
 
