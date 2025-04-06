@@ -824,19 +824,59 @@ exports.adminLogin = async (req, res) => {
     
     console.log('Admin login attempt for:', email);
     
-    // Case 1: Check against environment variables first (most secure)
-    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-      console.log('Admin login using environment credentials');
+    // Special case for admin@healthpal.com
+    if (email === 'admin@healthpal.com') {
+      // Check if it's the default admin from env vars
+      const isDefaultAdmin = (
+        email === process.env.ADMIN_EMAIL && 
+        password === process.env.ADMIN_PASSWORD
+      );
       
-      // Find or create the admin user
-      let admin = await Person.findOne({ email, role: 'admin' });
+      if (isDefaultAdmin) {
+        console.log('Admin login using default credentials');
+      } else {
+        // Try to find admin in database
+        console.log('Checking database for admin user');
+        const admin = await Person.findOne({ email, role: 'admin' });
+        
+        // If not found, or password doesn't match
+        if (!admin || admin.password !== password) {
+          console.log('Invalid admin credentials');
+          return res.status(401).json({
+            success: false,
+            message: 'Invalid admin credentials'
+          });
+        }
+        
+        // Generate token
+        const token = jwt.sign(
+          { id: admin._id, role: 'admin' },
+          process.env.JWT_SECRET,
+          { expiresIn: '30d' }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          token,
+          user: {
+            _id: admin._id,
+            id: admin._id,
+            name: admin.name,
+            email: admin.email,
+            role: 'admin'
+          }
+        });
+      }
+      
+      // Find or create default admin user
+      let admin = await Person.findOne({ email: process.env.ADMIN_EMAIL, role: 'admin' });
       
       if (!admin) {
-        console.log('Creating new admin account from environment variables');
+        console.log('Creating default admin account');
         admin = await Person.create({
           name: 'System Admin',
           email: process.env.ADMIN_EMAIL,
-          password: process.env.ADMIN_PASSWORD, // Store as plaintext for now
+          password: process.env.ADMIN_PASSWORD,
           role: 'admin'
         });
       }
@@ -861,7 +901,7 @@ exports.adminLogin = async (req, res) => {
       });
     }
     
-    // Case 2: Check database for admin users
+    // For other admin emails
     console.log('Checking database for admin user');
     const admin = await Person.findOne({ email, role: 'admin' });
     
@@ -873,7 +913,7 @@ exports.adminLogin = async (req, res) => {
       });
     }
     
-    // For now, do a direct password comparison (since we're not using bcrypt)
+    // For now, do a direct password comparison
     if (admin.password !== password) {
       console.log('Password mismatch for admin user');
       return res.status(401).json({
@@ -882,7 +922,7 @@ exports.adminLogin = async (req, res) => {
       });
     }
     
-    // Generate token with admin role explicitly included
+    // Generate token with admin role
     const token = jwt.sign(
       { id: admin._id, role: 'admin' },
       process.env.JWT_SECRET,
