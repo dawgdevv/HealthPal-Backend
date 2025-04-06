@@ -370,6 +370,51 @@ exports.login = async (req, res) => {
   }
 };
 
+// Add this function to verify Firebase credentials
+// Add it after the login function
+exports.verifyFirebaseCredentials = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and password'
+      });
+    }
+    
+    // Here we would verify with Firebase
+    // This is a placeholder - in a real implementation,
+    // you would use Firebase Admin SDK to verify the credentials
+    
+    // For now, we'll trust the credentials and find the user in our DB
+    let user = await Doctor.findOne({ email });
+    let userRole = user ? 'doctor' : null;
+    
+    if (!user) {
+      user = await Patient.findOne({ email });
+      userRole = user ? 'patient' : null;
+      
+      if (!user) {
+        user = await Person.findOne({ email });
+        userRole = user?.role || null;
+      }
+    }
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    return { success: true, user, userRole };
+  } catch (error) {
+    console.error('Firebase verification error:', error);
+    throw error;
+  }
+};
+
 // Get current logged in user
 exports.getMe = async (req, res) => {
   try {
