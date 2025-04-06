@@ -288,7 +288,7 @@ exports.authenticateFirebase = async (req, res) => {
   }
 };
 
-// Update the login function to properly generate the token with role
+// Update the login function with better diagnostics and fallbacks
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -302,19 +302,17 @@ exports.login = async (req, res) => {
 
     console.log(`Authentication attempt for email: ${email}`);
     
-    // Check DOCTOR model FIRST with explicit role assignment
-    let user = await Doctor.findOne({ email }).select('+password');
-    let userRole = 'doctor';
+    // Check all collections for this email
+    let user = await Doctor.findOne({ email });
+    let userRole = user ? 'doctor' : null;
     
-    // If not found in Doctor collection, try Patient collection
     if (!user) {
-      user = await Patient.findOne({ email }).select('+password');
-      userRole = 'patient';
+      user = await Patient.findOne({ email });
+      userRole = user ? 'patient' : null;
       
-      // If still not found, check Person collection as last resort
       if (!user) {
-        user = await Person.findOne({ email }).select('+password');
-        userRole = user?.role || 'patient';
+        user = await Person.findOne({ email });
+        userRole = user?.role || null;
       }
     }
     
@@ -327,30 +325,40 @@ exports.login = async (req, res) => {
       });
     }
     
-    // Check if the user has a password field (may be missing for social logins)
+    // Check if account was created with social login (no password)
     if (!user.password) {
-      console.log(`User has no password (possibly social login): ${email}`);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid login method. Try using social login if you registered with Google.'
+      console.log(`User has no password (social login account): ${email}`);
+      
+      // Generate a special token for this scenario
+      const socialToken = jwt.sign(
+        { id: user._id, role: userRole, social: true },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      
+      // Return success with special flag indicating social login should be used
+      return res.status(200).json({
+        success: true,
+        useSocialLogin: true,
+        message: 'This account was created with Google Sign-In. Please use Google Sign-In to log in.',
+        socialToken,
+        user: {
+          _id: user._id,
+          id: user._id, 
+          name: user.name,
+          email: user.email,
+          role: userRole,
+          profileImage: user.profileImage || null
+        }
       });
     }
     
-    // CRITICAL FIX: Safely compare passwords
-    try {
-      if (password !== user.password) {
-        console.log(`Password mismatch for email: ${email}`);
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid credentials'
-        });
-      }
-    } catch (passwordError) {
-      console.error('Password comparison error:', passwordError);
-      
+    // Regular password comparison
+    if (password !== user.password) {
+      console.log(`Password mismatch for email: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Login failed. If you registered with Google, please use Google sign-in.'
+        message: 'Invalid credentials'
       });
     }
     
@@ -369,7 +377,7 @@ exports.login = async (req, res) => {
     // Include verification status for doctors
     const userData = {
       _id: user._id,
-      id: user._id, // For compatibility
+      id: user._id,
       name: user.name,
       email: user.email,
       role: userRole,
