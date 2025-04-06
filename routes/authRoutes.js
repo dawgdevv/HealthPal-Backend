@@ -12,7 +12,24 @@ const jwt = require('jsonwebtoken');
 router.post('/register', authController.register);
 router.post('/register-google', authController.registerGoogle);
 // Make sure this route is BEFORE the protect middleware
-router.post('/admin-login', authController.adminLogin);
+router.post('/admin-login', async (req, res) => {
+  try {
+    // Log request body for debugging
+    console.log('Admin login request body:', {
+      email: req.body.email,
+      passwordProvided: !!req.body.password
+    });
+    
+    // Call the controller
+    return authController.adminLogin(req, res);
+  } catch (error) {
+    console.error('Admin login route error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error during admin authentication'
+    });
+  }
+});
 
 // Fix the login route implementation around line 19
 router.post('/login', async (req, res) => {
