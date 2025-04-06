@@ -288,7 +288,8 @@ exports.authenticateFirebase = async (req, res) => {
   }
 };
 
-// Replace or modify the login function to fix the password comparison issue
+// Replace the login function with this corrected version
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -327,15 +328,34 @@ exports.login = async (req, res) => {
       });
     }
     
-    // CRITICAL FIX: Use bcrypt.compare directly instead of using a method that might not exist
-    const bcrypt = require('bcryptjs');
-    const isMatch = await bcrypt.compare(password, user.password);
-    
-    if (!isMatch) {
-      console.log(`Password mismatch for email: ${email}`);
+    // Check if the user has a password field (may be missing for social logins)
+    if (!user.password) {
+      console.log(`User has no password (possibly social login): ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid login method. Try using social login if you registered with Google.'
+      });
+    }
+    
+    // CRITICAL FIX: Safely compare passwords
+    try {
+      const bcrypt = require('bcryptjs');
+      const isMatch = await bcrypt.compare(password, user.password);
+      
+      if (!isMatch) {
+        console.log(`Password mismatch for email: ${email}`);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+    } catch (passwordError) {
+      console.error('Password comparison error:', passwordError);
+      
+      // If there's an error in password comparison, user might have registered with social media
+      return res.status(401).json({
+        success: false,
+        message: 'Login failed. If you registered with Google, please use Google sign-in.'
       });
     }
     
@@ -345,8 +365,12 @@ exports.login = async (req, res) => {
     console.log(`- Email: ${user.email}`);
     console.log(`- Role: ${userRole}`);
     
-    // Create JWT with explicit role information
-    const token = generateToken(user._id);
+    // Create JWT token
+    const token = jwt.sign(
+      { id: user._id, role: userRole },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     // Include verification status for doctors
     const userData = {
