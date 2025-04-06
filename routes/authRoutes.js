@@ -186,6 +186,62 @@ router.post('/authenticate', async (req, res) => {
   }
 });
 
+// Add this to your routes
+router.post('/verify', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+    
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if user still exists
+    let user;
+    
+    if (decoded.role === 'doctor') {
+      user = await Doctor.findById(decoded.id).select('-password');
+    } else if (decoded.role === 'patient') {
+      user = await Patient.findById(decoded.id).select('-password');
+    } else {
+      user = await Person.findById(decoded.id).select('-password');
+    }
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User no longer exists'
+      });
+    }
+    
+    // If doctor check verification status
+    if (decoded.role === 'doctor' && user.verificationStatus !== 'approved') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account pending verification',
+        pendingVerification: true
+      });
+    }
+    
+    // Token and user are valid
+    return res.status(200).json({
+      success: true,
+      message: 'Token is valid'
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+});
+
 // Add or verify this line BEFORE the protect middleware
 router.post('/admin-login', authController.adminLogin);
 
