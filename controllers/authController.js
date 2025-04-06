@@ -288,8 +288,7 @@ exports.authenticateFirebase = async (req, res) => {
   }
 };
 
-// Replace the login function with this corrected version
-
+// Update the login function to properly generate the token with role
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -339,10 +338,7 @@ exports.login = async (req, res) => {
     
     // CRITICAL FIX: Safely compare passwords
     try {
-      const bcrypt = require('bcryptjs');
-      const isMatch = await bcrypt.compare(password, user.password);
-      
-      if (!isMatch) {
+      if (password !== user.password) {
         console.log(`Password mismatch for email: ${email}`);
         return res.status(401).json({
           success: false,
@@ -352,20 +348,18 @@ exports.login = async (req, res) => {
     } catch (passwordError) {
       console.error('Password comparison error:', passwordError);
       
-      // If there's an error in password comparison, user might have registered with social media
       return res.status(401).json({
         success: false,
         message: 'Login failed. If you registered with Google, please use Google sign-in.'
       });
     }
     
-    // Log successful authentication
     console.log(`User authenticated successfully:`);
     console.log(`- ID: ${user._id}`);
     console.log(`- Email: ${user.email}`);
     console.log(`- Role: ${userRole}`);
     
-    // Create JWT token
+    // Generate token with both ID and role
     const token = jwt.sign(
       { id: user._id, role: userRole },
       process.env.JWT_SECRET,
