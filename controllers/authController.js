@@ -822,27 +822,37 @@ exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Always prioritize environment variable admin
+    console.log('Admin login attempt for:', email);
+    
+    // Case 1: Check against environment variables first (most secure)
     if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-      // Find or create the admin
-      let admin = await Person.findOne({ email: process.env.ADMIN_EMAIL, role: 'admin' });
+      console.log('Admin login using environment credentials');
+      
+      // Find or create the admin user
+      let admin = await Person.findOne({ email, role: 'admin' });
       
       if (!admin) {
+        console.log('Creating new admin account from environment variables');
         admin = await Person.create({
           name: 'System Admin',
           email: process.env.ADMIN_EMAIL,
-          password: process.env.ADMIN_PASSWORD, // Store password as plain text
-          role: 'admin',
-          isActive: true
+          password: process.env.ADMIN_PASSWORD, // Store as plaintext for now
+          role: 'admin'
         });
       }
       
-      const token = generateToken(admin._id);
+      // Generate token
+      const token = jwt.sign(
+        { id: admin._id, role: 'admin' },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
       
       return res.status(200).json({
         success: true,
         token,
         user: {
+          _id: admin._id,
           id: admin._id,
           name: admin.name || 'System Admin',
           email: admin.email,
@@ -851,15 +861,50 @@ exports.adminLogin = async (req, res) => {
       });
     }
     
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid admin credentials'
+    // Case 2: Check database for admin users
+    console.log('Checking database for admin user');
+    const admin = await Person.findOne({ email, role: 'admin' });
+    
+    if (!admin) {
+      console.log('No admin found with email:', email);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid admin credentials'
+      });
+    }
+    
+    // For now, do a direct password comparison (since we're not using bcrypt)
+    if (admin.password !== password) {
+      console.log('Password mismatch for admin user');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid admin credentials'
+      });
+    }
+    
+    // Generate token with admin role explicitly included
+    const token = jwt.sign(
+      { id: admin._id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        _id: admin._id,
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: 'admin'
+      }
     });
   } catch (error) {
     console.error('Admin login error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Server error during admin authentication'
+      message: error.message || 'Server error during admin authentication'
     });
   }
 };
