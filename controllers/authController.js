@@ -346,28 +346,27 @@ exports.login = async (req, res) => {
     console.log(`- Collection: ${user.constructor.modelName}`);
     
     // Create JWT with explicit role information
-    const token = jwt.sign(
-      { 
-        id: user._id,
-        email: user.email,
-        role: userRole,
-        modelType: user.constructor.modelName 
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const token = generateToken(user._id);
+
+    // Include verification status for doctors
+    const userData = {
+      _id: user._id,
+      id: user._id, // For compatibility
+      name: user.name,
+      email: user.email,
+      role: userRole,
+      profileImage: user.profileImage || null
+    };
+
+    // Add verification status for doctors
+    if (userRole === 'doctor') {
+      userData.verificationStatus = user.verificationStatus;
+    }
 
     res.status(200).json({
       success: true,
       token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: userRole,
-        profileImage: user.profileImage || null,
-        specialization: user.specialization
-      }
+      user: userData
     });
   } catch (error) {
     console.error('Authentication error:', error);
